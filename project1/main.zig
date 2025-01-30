@@ -11,6 +11,20 @@ const Base64 = struct {
             ._table = upper ++ lower ++ numbers_symb,
         };
     }
+    pub fn _char_index(self: Base64, char: u8) u8 {
+        if (char == '=') {
+            return 64;
+        }
+        var index: u8 = 0;
+        for (0..63) |i| {
+            if (self._char_at(@intCast(i)) == char) {
+                index = @intCast(i);
+                break;
+            }
+        }
+        return index;
+    }
+
     pub fn _char_at(self: Base64, index: u8) u8 {
         return self._table[index];
     }
@@ -62,6 +76,35 @@ const Base64 = struct {
         }
         return out;
     }
+    pub fn decode(self: Base64, allocator: std.mem.Allocator, input: []const u8) ![]u8 {
+        if (input.len == 0) {
+            return "";
+        }
+
+        const n_out = try _calc_decode_length(input);
+        var out = try allocator.alloc(u8, n_out);
+        var buf = [4]u8{ 0, 0, 0, 0 };
+        var count: u8 = 0;
+        var iout: usize = 0;
+
+        for (input, 0..) |_, i| {
+            buf[count] = self._char_index(input[i]);
+            count += 1;
+            if (count == 4) {
+                out[iout] = (buf[0] << 2) + (buf[1] >> 4);
+                if (buf[2] != 64) {
+                    out[iout + 1] = (buf[1] << 4) + (buf[2] >> 2);
+                }
+                if (buf[3] != 64) {
+                    out[iout + 2] = (buf[2] << 6) + buf[3];
+                }
+                iout += 3;
+                count = 0;
+            }
+        }
+
+        return out;
+    }
 };
 
 fn _calc_encode_length(input: []const u8) !usize {
@@ -101,5 +144,5 @@ pub fn main() !void {
     var fba = std.heap.FixedBufferAllocator.init(&memory_buffer);
     const allocator = fba.allocator();
     const base64 = Base64.init();
-    std.debug.print("{s}\n", .{try base64.encode(allocator, "victor")});
+    std.debug.print("{s}\n", .{try base64.decode(allocator, try base64.encode(allocator, "victor1"))});
 }
