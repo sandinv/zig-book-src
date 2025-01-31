@@ -11,22 +11,26 @@ const Base64 = struct {
             ._table = upper ++ lower ++ numbers_symb,
         };
     }
-    pub fn _char_index(self: Base64, char: u8) u8 {
+
+    pub fn _char_at(self: Base64, index: u8) !u8 {
+        if (index >= self._table.len) {
+            return error.OutOfIndex;
+        }
+        return self._table[index];
+    }
+
+    pub fn _char_index(self: Base64, char: u8) !u8 {
         if (char == '=') {
             return 64;
         }
         var index: u8 = 0;
-        for (0..63) |i| {
-            if (self._char_at(@intCast(i)) == char) {
-                index = @intCast(i);
+        for (0..63) |_| {
+            if (try self._char_at(index) == char) {
                 break;
             }
+            index += 1;
         }
         return index;
-    }
-
-    pub fn _char_at(self: Base64, index: u8) u8 {
-        return self._table[index];
     }
 
     pub fn encode(self: Base64, allocator: std.mem.Allocator, input: []const u8) ![]u8 {
@@ -44,14 +48,14 @@ const Base64 = struct {
             buf[count] = input[i];
             count += 1;
             if (count == 3) {
-                out[iout] = self._char_at(buf[0] >> 2);
-                out[iout + 1] = self._char_at(
+                out[iout] = try self._char_at(buf[0] >> 2);
+                out[iout + 1] = try self._char_at(
                     ((buf[0] & 0x03) << 4) + (buf[1] >> 4),
                 );
-                out[iout + 2] = self._char_at(
+                out[iout + 2] = try self._char_at(
                     ((buf[1] & 0x0f) << 2) + (buf[2] >> 6),
                 );
-                out[iout + 3] = self._char_at(
+                out[iout + 3] = try self._char_at(
                     (buf[2] & 0x3f),
                 );
                 iout += 4;
@@ -59,17 +63,17 @@ const Base64 = struct {
             }
         }
         if (count == 1) {
-            out[iout] = self._char_at(buf[0] >> 2);
-            out[iout + 1] = self._char_at(((buf[0] & 0x03) << 4));
+            out[iout] = try self._char_at(buf[0] >> 2);
+            out[iout + 1] = try self._char_at(((buf[0] & 0x03) << 4));
             out[iout + 2] = '=';
             out[iout + 3] = '=';
         }
         if (count == 2) {
-            out[iout] = self._char_at(buf[0] >> 2);
-            out[iout + 1] = self._char_at(
+            out[iout] = try self._char_at(buf[0] >> 2);
+            out[iout + 1] = try self._char_at(
                 ((buf[0] & 0x03) << 4) + (buf[1] >> 4),
             );
-            out[iout + 2] = self._char_at(
+            out[iout + 2] = try self._char_at(
                 ((buf[1] & 0x0f) << 2),
             );
             out[iout + 3] = '=';
@@ -86,9 +90,12 @@ const Base64 = struct {
         var buf = [4]u8{ 0, 0, 0, 0 };
         var count: u8 = 0;
         var iout: usize = 0;
+        for (0..out.len) |i| {
+            out[i] = 0;
+        }
 
         for (input, 0..) |_, i| {
-            buf[count] = self._char_index(input[i]);
+            buf[count] = try self._char_index(input[i]);
             count += 1;
             if (count == 4) {
                 out[iout] = (buf[0] << 2) + (buf[1] >> 4);
@@ -121,17 +128,6 @@ fn _calc_decode_length(input: []const u8) !usize {
         const n_output: usize = 3;
 
         return n_output;
-    }
-
-    if (input[input.len - 1] == '=') {
-        var factor: usize = 2;
-        var length: usize = input.len - 2;
-        if (input[input.len - 2] == '=') {
-            factor -= 1;
-            length -= 1;
-        }
-        const n_output: usize = try std.math.divFloor(usize, input[0..length].len, 4);
-        return n_output * 3 + factor;
     }
 
     const n_output: usize = try std.math.divFloor(usize, input.len, 4);
