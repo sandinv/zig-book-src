@@ -8,6 +8,7 @@ const std = @import("std");
 pub fn main() !void {
     const path = "pedro_pascal.png";
     const file_descriptor = c.fopen(path, "rb");
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
@@ -15,7 +16,7 @@ pub fn main() !void {
         @panic("Could not open file!");
     }
     const ctx = c.spng_ctx_new(0) orelse unreachable;
-    _ = c.spng_set_png_file(ctx, @ptrCast(file_descriptor));
+    _ = c.spng_set_png_file(ctx, file_descriptor);
 
     var image_header = try get_image_header(ctx);
     const output_size = try calc_output_size(ctx);
@@ -91,7 +92,7 @@ fn save_png(image_header: *c.spng_ihdr, buffer: []u8) !void {
 
     defer c.spng_ctx_free(ctx);
 
-    _ = c.spng_set_png_file(ctx, @ptrCast(file_descriptor));
+    _ = c.spng_set_png_file(ctx, file_descriptor);
     _ = c.spng_set_ihdr(ctx, image_header);
 
     const encode_status = c.spng_encode_image(ctx, buffer.ptr, buffer.len, c.SPNG_FMT_PNG, c.SPNG_ENCODE_FINALIZE);
